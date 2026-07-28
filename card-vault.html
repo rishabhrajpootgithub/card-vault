@@ -242,7 +242,7 @@ function chipSVG() {
     <rect x="11.3" y="6.2" width="11.4" height="13.6" fill="none" stroke="#8A7433" stroke-width="0.6"/>
   </svg>`;
 }
-function cardFaceHTML(card, revealed, isFlipped) {
+function cardFaceHTML(card, revealed, isFlipped, compact) {
   const bank = bankOf(card.bankId);
   const bg = `linear-gradient(135deg, ${bank.accent} 0%, #05070C 130%)`;
   if (!isFlipped) {
@@ -250,10 +250,11 @@ function cardFaceHTML(card, revealed, isFlipped) {
       <div class="glow"></div>
       <div class="row"><div class="chip">${chipSVG()}${wordmarkHTML(bank)}</div>${netMarkHTML(card.networkId)}</div>
       <div class="cardNum mono">${revealed ? fmtNum(card.number) : maskNum(card.number)}</div>
+      ${compact ? `<div class="row end"><div style="opacity:0.35;font-size:10px;color:#fff;">Tap for details</div></div>` : `
       <div class="row end">
         <div><div class="fieldLabel">Card holder</div><div class="fieldVal">${esc(card.holder)||"—"}</div></div>
         <div style="text-align:right"><div class="fieldLabel">Expires</div><div class="expVal mono">${esc(card.expiry)||"••/••"}</div></div>
-      </div>
+      </div>`}
     </div>`;
   }
   return `<div class="card" style="background:${bg}">
@@ -271,7 +272,7 @@ function renderStack() {
     const bank = bankOf(c.bankId);
     return `<div class="stackItem" data-idx="${i}">
       <button class="stackCardBtn" data-id="${c.id}">
-        ${cardFaceHTML(c, false, false)}
+        ${cardFaceHTML(c, false, false, true)}
         <div class="bankPill" style="background:${bank.chip};color:${bank.accent}">${esc(bank.name)}</div>
       </button>
     </div>`;
@@ -418,7 +419,7 @@ function renderAddModal() {
 
         <div class="field">
           <label class="label" style="margin-top:0;">Card number</label>
-          <input type="text" class="mono" id="fNumber" placeholder="1234 5678 9012 3456" value="${fmtNum(form.number)}">
+          <input type="text" class="mono" id="fNumber" placeholder="1234 5678 9012 3456" inputmode="numeric" value="${fmtNum(form.number)}">
         </div>
         <div class="field">
           <label class="label" style="margin-top:0;">Card holder name</label>
@@ -426,12 +427,22 @@ function renderAddModal() {
         </div>
         <div class="fieldRow">
           <div class="field">
-            <label class="label" style="margin-top:0;">Expiry (MM/YY)</label>
-            <input type="text" class="mono" id="fExpiry" placeholder="MM/YY" value="${esc(form.expiry)}">
+            <label class="label" style="margin-top:0;">Expiry</label>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <select id="fExpiryMonth" style="flex:1;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:10px 6px;color:#fff;font-size:14px;outline:none;">
+                <option value="">MM</option>
+                ${Array.from({length:12},(_,i)=>String(i+1).padStart(2,"0")).map(m=>`<option value="${m}" ${form.expiry.split("/")[0]===m?"selected":""}>${m}</option>`).join("")}
+              </select>
+              <span style="color:rgba(255,255,255,0.4);">/</span>
+              <select id="fExpiryYear" style="flex:1;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:10px 6px;color:#fff;font-size:14px;outline:none;">
+                <option value="">YY</option>
+                ${Array.from({length:16},(_,i)=>String((new Date().getFullYear()+i)%100).padStart(2,"0")).map(y=>`<option value="${y}" ${form.expiry.split("/")[1]===y?"selected":""}>${y}</option>`).join("")}
+              </select>
+            </div>
           </div>
           <div class="field">
             <label class="label" style="margin-top:0;">CVV</label>
-            <input type="text" class="mono" id="fCvv" placeholder="123" value="${esc(form.cvv)}">
+            <input type="text" class="mono" id="fCvv" placeholder="123" inputmode="numeric" value="${esc(form.cvv)}">
           </div>
         </div>
         <div class="field">
@@ -448,11 +459,19 @@ function renderAddModal() {
   document.querySelectorAll(".bankRow").forEach(btn=>btn.addEventListener("click", ()=>{ form.bankId=btn.dataset.bank; renderAddModal(); }));
   document.querySelectorAll(".netBtn").forEach(btn=>btn.addEventListener("click", ()=>{ form.networkId=btn.dataset.net; renderAddModal(); }));
   document.getElementById("fNumber").addEventListener("input", (e)=>{
-    form.number = e.target.value;
+    const digits = e.target.value.replace(/\D/g,"").slice(0,16);
+    form.number = digits;
+    e.target.value = fmtNum(digits);
     if (!form.networkId) { const s = detectNet(form.number); if (s) form.networkId = s; }
   });
   document.getElementById("fHolder").addEventListener("input", (e)=>{ form.holder = e.target.value; });
-  document.getElementById("fExpiry").addEventListener("input", (e)=>{ form.expiry = e.target.value.replace(/[^\d/]/g,"").slice(0,5); e.target.value = form.expiry; });
+  function syncExpiry() {
+    const m = document.getElementById("fExpiryMonth").value;
+    const y = document.getElementById("fExpiryYear").value;
+    form.expiry = (m && y) ? `${m}/${y}` : "";
+  }
+  document.getElementById("fExpiryMonth").addEventListener("change", syncExpiry);
+  document.getElementById("fExpiryYear").addEventListener("change", syncExpiry);
   document.getElementById("fCvv").addEventListener("input", (e)=>{ form.cvv = e.target.value.replace(/\D/g,"").slice(0,4); e.target.value = form.cvv; });
   document.getElementById("fNickname").addEventListener("input", (e)=>{ form.nickname = e.target.value; });
   document.getElementById("saveCardBtn").addEventListener("click", handleAdd);
