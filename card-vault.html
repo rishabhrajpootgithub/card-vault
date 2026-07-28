@@ -181,20 +181,57 @@ let form = { bankId:"", networkId:"", number:"", holder:"", expiry:"", cvv:"", n
 let bankQuery = "";
 let saveError = false;
 
+// ---------- logo file resolution ----------
+// Your exported files follow a naming pattern from Figma:
+//   logos/banks/Bank Name=<Bank Full Name>.svg
+//   logos/networks/<Network Name>.svg
+// Instead of listing every filename by hand, the path is generated from the
+// bank/network's name. If a particular file's name doesn't exactly match
+// (different casing, abbreviation, etc.), add ONE line to the override map
+// below for just that entry — everything else resolves automatically.
+const BANK_LOGO_NAME_OVERRIDES = {
+  // id: "Exact name as it appears in the banks folder filename"
+  axis: "Axis bank",
+};
+const NETWORK_LOGO_NAME_OVERRIDES = {
+  // id: "Exact name as it appears in the networks folder filename"
+};
+
+function bankLogoUrl(bank) {
+  const figmaName = BANK_LOGO_NAME_OVERRIDES[bank.id] || bank.name;
+  return `logos/banks/${encodeURIComponent("Bank Name=" + figmaName + ".svg")}`;
+}
+function networkLogoUrl(net) {
+  const figmaName = NETWORK_LOGO_NAME_OVERRIDES[net.id] || net.label;
+  return `logos/networks/${encodeURIComponent(figmaName + ".svg")}`;
+}
+
 // ---------- render helpers ----------
 function wordmarkHTML(bank, size) {
+  const h = size==="lg" ? 26 : size==="list" ? 22 : 17;
   const cls = size==="lg" ? "lg" : size==="list" ? "list" : "";
   const style = bank.style==="italic" ? "font-style:italic;" : "";
   const underline = bank.style==="underline" ? `border-bottom:2px solid #fff;` : "";
-  return `<div class="wordmark ${cls}" style="background:${bank.accent}"><span style="color:#fff;${style}${underline}">${esc(bank.short)}</span></div>`;
+  const fallback = `<div class="wordmark ${cls}" style="background:${bank.accent}"><span style="color:#fff;${style}${underline}">${esc(bank.short)}</span></div>`;
+  const url = bankLogoUrl(bank);
+  const fallbackEsc = fallback.replace(/"/g, "&quot;");
+  return `<span data-logo-wrap="1"><img src="${url}" style="height:${h}px;width:auto;object-fit:contain;border-radius:4px;" onerror="this.outerHTML='${fallbackEsc}'"></span>`;
 }
 function netMarkHTML(id) {
-  if (id==="visa") return `<span style="font-style:italic;font-weight:700;color:#fff;font-size:15px;">VISA</span>`;
-  if (id==="mastercard") return `<span style="display:inline-flex;align-items:center;"><span style="width:15px;height:15px;background:#EB001B;border-radius:50%;display:inline-block;"></span><span style="width:15px;height:15px;background:#F79E1B;border-radius:50%;display:inline-block;margin-left:-5px;opacity:0.85;"></span></span>`;
-  if (id==="rupay") return `<span style="font-weight:700;color:#fff;font-size:11px;">Ru<span style="color:#F7941D;">Pay</span></span>`;
-  if (id==="amex") return `<span style="background:#0055A4;padding:2px 6px;border-radius:2px;color:#fff;font-weight:700;font-size:8px;">AMEX</span>`;
-  if (id==="diners") return `<span style="font-weight:600;color:#fff;font-size:10px;">Diners Club</span>`;
-  return `<span style="color:rgba(255,255,255,0.6);font-size:9px;">CARD</span>`;
+  const net = NETWORKS.find(n => n.id === id);
+  if (!net) return `<span style="color:rgba(255,255,255,0.6);font-size:9px;">CARD</span>`;
+  const url = networkLogoUrl(net);
+  const fallbacks = {
+    visa: `<span style="font-style:italic;font-weight:700;color:#fff;font-size:15px;">VISA</span>`,
+    mastercard: `<span style="display:inline-flex;align-items:center;"><span style="width:15px;height:15px;background:#EB001B;border-radius:50%;display:inline-block;"></span><span style="width:15px;height:15px;background:#F79E1B;border-radius:50%;display:inline-block;margin-left:-5px;opacity:0.85;"></span></span>`,
+    rupay: `<span style="font-weight:700;color:#fff;font-size:11px;">Ru<span style="color:#F7941D;">Pay</span></span>`,
+    amex: `<span style="background:#0055A4;padding:2px 6px;border-radius:2px;color:#fff;font-weight:700;font-size:8px;">AMEX</span>`,
+    diners: `<span style="font-weight:600;color:#fff;font-size:10px;">Diners Club</span>`,
+    other: `<span style="color:rgba(255,255,255,0.6);font-size:9px;">CARD</span>`,
+  };
+  const fallback = fallbacks[id] || fallbacks.other;
+  const fallbackEsc = fallback.replace(/"/g, "&quot;");
+  return `<span data-logo-wrap="1"><img src="${url}" style="height:15px;width:auto;object-fit:contain;" onerror="this.outerHTML='${fallbackEsc}'"></span>`;
 }
 function chipSVG() {
   return `<svg width="30" height="23" viewBox="0 0 34 26" fill="none">
