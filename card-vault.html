@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<title>Card Vault</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; background: #0B1220; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; }
+  .mono { font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; }
+  .display { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; font-weight: 700; }
+  .wrap { max-width: 420px; margin: 0 auto; padding: 28px 16px 60px; }
+  .top { display:flex; align-items:center; justify-content:space-between; margin-bottom:4px; }
+  h1 { color:#fff; font-size:24px; margin:0; }
+  .addbtn { background:#C9A227; color:#000; border:none; border-radius:12px; padding:10px 14px; font-size:14px; font-weight:600; display:flex; align-items:center; gap:6px; }
+  .addbtn:active { transform: scale(0.96); }
+  .sub { color: rgba(255,255,255,0.4); font-size:12px; margin: 4px 0 16px; }
+  .note { background: rgba(201,162,39,0.08); border:1px solid rgba(201,162,39,0.25); border-radius:12px; padding:12px; margin-bottom:20px; color: rgba(255,255,255,0.6); font-size:11.5px; line-height:1.4; }
+  .empty { border: 1px dashed rgba(255,255,255,0.12); border-radius:16px; padding:64px 0; text-align:center; color: rgba(255,255,255,0.4); font-size:14px; }
+
+  /* card stack */
+  .stackOuter { position:relative; height:340px; perspective:900px; overflow:hidden; border-radius:16px; }
+  .stackScroll { height:100%; overflow-y:auto; scrollbar-width:none; position:relative; }
+  .stackScroll::-webkit-scrollbar { display:none; }
+  .stackSpacer { height: 150px; }
+  .stackItem { height:118px; display:flex; align-items:center; justify-content:center; }
+  .stackCardBtn { position:absolute; width:88%; max-width:340px; aspect-ratio:1.586; border:none; background:none; padding:0; cursor:pointer; transform-style:preserve-3d; }
+  .bankPill { position:absolute; left:50%; bottom:-8px; transform:translateX(-50%); font-size:9px; font-weight:600; padding:2px 8px; border-radius:999px; white-space:nowrap; }
+  .fadeTop, .fadeBottom { position:absolute; left:0; right:0; height:50px; pointer-events:none; z-index:5; }
+  .fadeTop { top:0; background: linear-gradient(180deg, #0B1220 0%, transparent 100%); }
+  .fadeBottom { bottom:0; background: linear-gradient(0deg, #0B1220 0%, transparent 100%); }
+
+  /* card face */
+  .card { position:relative; width:100%; height:100%; border-radius:16px; padding:20px; display:grid; grid-template-rows: 34px 1fr 40px; box-shadow: 0 20px 40px rgba(0,0,0,0.4); overflow:hidden; }
+  .card .glow { position:absolute; inset:0; background: radial-gradient(circle at 88% 10%, rgba(255,255,255,0.14), transparent 55%); pointer-events:none; }
+  .row { display:flex; align-items:center; justify-content:space-between; position:relative; z-index:1; }
+  .row.end { align-items:flex-end; }
+  .chip { display:flex; align-items:center; gap:8px; min-width:0; }
+  .cardNum { color:#fff; font-size:18px; letter-spacing:2px; display:flex; align-items:center; }
+  .fieldLabel { font-size:9px; color:rgba(255,255,255,0.5); text-transform:uppercase; letter-spacing:0.05em; }
+  .fieldVal { font-size:14px; color:rgba(255,255,255,0.9); text-transform:uppercase; letter-spacing:0.02em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:150px; }
+  .expVal { font-size:14px; color:rgba(255,255,255,0.9); }
+  .cvvBox { background:rgba(255,255,255,0.9); color:#000; border-radius:4px; padding:6px 12px; font-size:14px; letter-spacing:2px; }
+  .stripe { width: calc(100% + 40px); height:100%; background: rgba(0,0,0,0.7); margin: -20px -20px 0; }
+  .bankName { font-size:10px; color:rgba(255,255,255,0.5); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:140px; }
+
+  .wordmark { display:inline-flex; align-items:center; border-radius:5px; padding:0 7px; height:17px; white-space:nowrap; }
+  .wordmark span { font-weight:700; font-size:8.5px; line-height:1; max-width:92px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block; }
+  .wordmark.lg { height:26px; padding:0 11px; }
+  .wordmark.lg span { font-size:13px; max-width:130px; }
+  .wordmark.list { height:22px; padding:0 9px; }
+  .wordmark.list span { font-size:11px; max-width:150px; }
+
+  /* sheet / modal */
+  .overlay { position:fixed; inset:0; background:rgba(0,0,0,0.65); z-index:50; display:flex; align-items:flex-end; justify-content:center; }
+  @media (min-width:640px){ .overlay{ align-items:center; } }
+  .sheet { width:100%; max-width:420px; background:#0F1526; border-radius:18px 18px 0 0; padding:20px 20px 28px; max-height:88vh; overflow-y:auto; }
+  @media (min-width:640px){ .sheet{ border-radius:18px; } }
+  .sheetHead { display:flex; align-items:center; gap:10px; margin-bottom:16px; }
+  .backBtn { background:none; border:none; color:rgba(255,255,255,0.5); font-size:20px; cursor:pointer; padding:0; }
+  .closeBtn { background:none; border:none; color:rgba(255,255,255,0.4); font-size:20px; cursor:pointer; }
+  .bankTitle { color:#fff; font-weight:700; font-size:14px; }
+  .bankSub { color:rgba(255,255,255,0.4); font-size:11px; }
+  .flipWrap { width:100%; max-width:320px; aspect-ratio:1.586; margin:0 auto 6px; perspective:1000px; }
+  .flipInner { position:relative; width:100%; height:100%; transition:transform 0.5s; transform-style:preserve-3d; cursor:pointer; }
+  .flipInner.flipped { transform: rotateY(180deg); }
+  .face { position:absolute; inset:0; backface-visibility:hidden; }
+  .faceBack { transform: rotateY(180deg); }
+  .hint { text-align:center; color:rgba(255,255,255,0.3); font-size:11px; margin-bottom:16px; }
+  .detailBox { background:#141B2C; border-radius:16px; padding:16px; }
+  .detailHead { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+  .actionBtn { display:flex; align-items:center; gap:5px; font-size:12px; padding:6px 10px; border-radius:8px; border:none; cursor:pointer; }
+  .revealBtn { background:rgba(255,255,255,0.06); color:rgba(255,255,255,0.7); }
+  .delBtn { background:rgba(220,90,90,0.12); color:#E08585; }
+  .detGrid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:10px; }
+  .detItem { margin-top:10px; }
+  .detLabel { font-size:10px; color:rgba(255,255,255,0.4); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:2px; }
+  .detVal { font-size:14px; color:rgba(255,255,255,0.9); }
+
+  .modalTitle { color:#fff; font-weight:700; font-size:17px; }
+  .label { font-size:10px; color:rgba(255,255,255,0.4); text-transform:uppercase; letter-spacing:0.05em; display:block; margin:14px 0 6px; }
+  .searchBox { position:relative; }
+  .searchBox input { padding-left:30px; }
+  .searchIcon { position:absolute; left:10px; top:50%; transform:translateY(-50%); color:rgba(255,255,255,0.3); font-size:13px; }
+  .bankList { max-height:180px; overflow-y:auto; border:1px solid rgba(255,255,255,0.05); border-radius:12px; padding:6px; }
+  .bankRow { width:100%; display:flex; align-items:center; gap:10px; padding:6px 8px; border-radius:8px; background:none; border:none; cursor:pointer; text-align:left; }
+  .bankRow span.name { color:rgba(255,255,255,0.8); font-size:12px; }
+  .netGrid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:6px; }
+  .netBtn { background:#0B1220; border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:12px 4px; display:flex; align-items:center; justify-content:center; cursor:pointer; }
+  input[type=text] { width:100%; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:8px; padding:10px 12px; color:#fff; font-size:14px; outline:none; }
+  input[type=text]::placeholder { color:rgba(255,255,255,0.25); }
+  input[type=text]:focus { border-color:rgba(255,255,255,0.25); }
+  .field { margin-bottom:12px; }
+  .fieldRow { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .saveBtn { width:100%; background:#C9A227; color:#000; border:none; border-radius:12px; padding:13px; font-weight:600; font-size:14px; margin-top:18px; cursor:pointer; }
+  .saveBtn:active { transform:scale(0.98); }
+  .errNote { background: rgba(224,133,133,0.1); border:1px solid rgba(224,133,133,0.3); border-radius:12px; padding:10px 12px; margin-bottom:16px; color:#E08585; font-size:11.5px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <h1 class="display">Card Vault</h1>
+    <button class="addbtn" id="addBtn">+ Add card</button>
+  </div>
+  <p class="sub">Scroll the stack, tap a card for details. Saved only on this device.</p>
+  <div class="note">This runs fully offline — no network calls, no server. Cards are stored in this browser's local storage on your phone only. It isn't encrypted, so still avoid real CVVs where possible, and remember clearing browser data / site storage will erase it.</div>
+  <div id="content"></div>
+</div>
+
+<div id="modalRoot"></div>
+
+<script>
+// ---------- data ----------
+const BANKS = [
+  { id:"sbi", name:"State Bank of India", short:"SBI", accent:"#1B4F9C", chip:"#FCE2A8", style:"normal" },
+  { id:"hdfc", name:"HDFC Bank", short:"HDFC BANK", accent:"#0A3161", chip:"#DDE6F2", style:"compact" },
+  { id:"icici", name:"ICICI Bank", short:"ICICI Bank", accent:"#B5451B", chip:"#F2C9A0", style:"italic" },
+  { id:"axis", name:"Axis Bank", short:"AXIS BANK", accent:"#611B2E", chip:"#E7B8C4", style:"underline" },
+  { id:"kotak", name:"Kotak Mahindra Bank", short:"Kotak", accent:"#7A0E1E", chip:"#E9BEC5", style:"italic" },
+  { id:"pnb", name:"Punjab National Bank", short:"PNB", accent:"#5C1010", chip:"#E3B9B9", style:"normal" },
+  { id:"bob", name:"Bank of Baroda", short:"Bank of Baroda", accent:"#E06A20", chip:"#FBD9BA", style:"compact" },
+  { id:"canara", name:"Canara Bank", short:"Canara Bank", accent:"#123E6B", chip:"#C7D9EC", style:"normal" },
+  { id:"union", name:"Union Bank of India", short:"Union Bank", accent:"#7A1414", chip:"#E7BEBE", style:"underline" },
+  { id:"indian", name:"Indian Bank", short:"Indian Bank", accent:"#144A2E", chip:"#BFE0CC", style:"normal" },
+  { id:"iob", name:"Indian Overseas Bank", short:"IOB", accent:"#123B6E", chip:"#C4D6EC", style:"normal" },
+  { id:"central", name:"Central Bank of India", short:"Central Bank", accent:"#2B2E7A", chip:"#C9CBEE", style:"compact" },
+  { id:"uco", name:"UCO Bank", short:"UCO BANK", accent:"#7A1E1E", chip:"#EABEBE", style:"normal" },
+  { id:"boi", name:"Bank of India", short:"Bank of India", accent:"#8A1010", chip:"#EFC0C0", style:"compact" },
+  { id:"maharashtra", name:"Bank of Maharashtra", short:"Bank of Mah.", accent:"#1E5C2E", chip:"#C3E4CC", style:"normal" },
+  { id:"psb", name:"Punjab & Sind Bank", short:"P&SB", accent:"#0F3D5C", chip:"#C1DCEA", style:"normal" },
+  { id:"indusind", name:"IndusInd Bank", short:"IndusInd", accent:"#5C1717", chip:"#E7C0C0", style:"underline" },
+  { id:"yes", name:"Yes Bank", short:"YES BANK", accent:"#0E2A5C", chip:"#B9CBE8", style:"italic" },
+  { id:"idfc", name:"IDFC First Bank", short:"IDFC FIRST", accent:"#7A1428", chip:"#E9BFC7", style:"underline" },
+  { id:"federal", name:"Federal Bank", short:"Federal Bank", accent:"#1B3B6B", chip:"#F6D9A8", style:"compact" },
+  { id:"rbl", name:"RBL Bank", short:"RBL BANK", accent:"#7A1E1E", chip:"#EAC4C4", style:"normal" },
+  { id:"southindian", name:"South Indian Bank", short:"SIB", accent:"#123B2A", chip:"#C3E0D3", style:"normal" },
+  { id:"karurvysya", name:"Karur Vysya Bank", short:"KVB", accent:"#7A2E12", chip:"#EBCBB8", style:"compact" },
+  { id:"cityunion", name:"City Union Bank", short:"CUB", accent:"#123B6E", chip:"#C3D8EC", style:"normal" },
+  { id:"dcb", name:"DCB Bank", short:"DCB BANK", accent:"#123B2E", chip:"#C4E0D0", style:"normal" },
+  { id:"bandhan", name:"Bandhan Bank", short:"Bandhan", accent:"#7A1420", chip:"#EBC0C6", style:"underline" },
+  { id:"csb", name:"CSB Bank", short:"CSB", accent:"#123B6E", chip:"#C4D8EC", style:"normal" },
+  { id:"jk", name:"Jammu & Kashmir Bank", short:"J&K Bank", accent:"#0F3D2E", chip:"#C1E0CE", style:"compact" },
+  { id:"au", name:"AU Small Finance Bank", short:"AU Bank", accent:"#7A1414", chip:"#EBC2C2", style:"italic" },
+  { id:"equitas", name:"Equitas Small Finance Bank", short:"Equitas", accent:"#123B6E", chip:"#C4D8EC", style:"normal" },
+  { id:"ujjivan", name:"Ujjivan Small Finance Bank", short:"Ujjivan", accent:"#7A4E12", chip:"#EBD4B8", style:"compact" },
+  { id:"citi", name:"Citibank India", short:"citi", accent:"#0033A0", chip:"#C7D5F2", style:"italic" },
+  { id:"hsbc", name:"HSBC India", short:"HSBC", accent:"#DB0011", chip:"#F6C2C6", style:"compact" },
+  { id:"sc", name:"Standard Chartered", short:"Standard Chartered", accent:"#0F5C3C", chip:"#C2E4D2", style:"normal" },
+  { id:"deutsche", name:"Deutsche Bank", short:"Deutsche Bank", accent:"#0018A8", chip:"#C4CCF2", style:"compact" },
+  { id:"paytm", name:"Paytm Payments Bank", short:"Paytm", accent:"#123B8E", chip:"#C4D2F2", style:"italic" },
+  { id:"airtel", name:"Airtel Payments Bank", short:"airtel", accent:"#B5121B", chip:"#EFC2C4", style:"underline" },
+  { id:"other", name:"Other bank", short:"BANK", accent:"#2A2E3A", chip:"#C9CBD3", style:"normal" },
+];
+const NETWORKS = [
+  { id:"visa", label:"Visa", test:n=>/^4/.test(n) },
+  { id:"mastercard", label:"Mastercard", test:n=>/^5[1-5]/.test(n) },
+  { id:"rupay", label:"RuPay", test:n=>/^6/.test(n) },
+  { id:"amex", label:"Amex", test:n=>/^3[47]/.test(n) },
+  { id:"diners", label:"Diners Club", test:n=>/^3(0[0-5]|[68])/.test(n) },
+  { id:"other", label:"Other", test:()=>false },
+];
+const bankOf = id => BANKS.find(b=>b.id===id) || BANKS[BANKS.length-1];
+const netOf = id => NETWORKS.find(n=>n.id===id);
+const detectNet = num => { const c=num.replace(/\s/g,""); const m=NETWORKS.find(n=>n.id!=="other"&&n.test(c)); return m?m.id:""; };
+const fmtNum = raw => raw.replace(/\D/g,"").slice(0,16).replace(/(.{4})/g,"$1 ").trim();
+const maskNum = raw => { const c=raw.replace(/\s/g,""); const last4=c.slice(-4); const g=Math.max(0,Math.ceil((c.length-4)/4)); return (("•••• ").repeat(g||3)+last4).trim(); };
+const esc = s => (s||"").replace(/[&<>"']/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+
+// ---------- storage ----------
+const STORE_KEY = "card_vault_cards_v1";
+function loadCards() { try { return JSON.parse(localStorage.getItem(STORE_KEY) || "[]"); } catch(e){ return []; } }
+function saveCards(cards) { try { localStorage.setItem(STORE_KEY, JSON.stringify(cards)); return true; } catch(e){ return false; } }
+
+// ---------- state ----------
+let cards = loadCards();
+let activeId = null;
+let revealMap = {};
+let flipped = false;
+let form = { bankId:"", networkId:"", number:"", holder:"", expiry:"", cvv:"", nickname:"" };
+let bankQuery = "";
+let saveError = false;
+
+// ---------- render helpers ----------
+function wordmarkHTML(bank, size) {
+  const cls = size==="lg" ? "lg" : size==="list" ? "list" : "";
+  const style = bank.style==="italic" ? "font-style:italic;" : "";
+  const underline = bank.style==="underline" ? `border-bottom:2px solid #fff;` : "";
+  return `<div class="wordmark ${cls}" style="background:${bank.accent}"><span style="color:#fff;${style}${underline}">${esc(bank.short)}</span></div>`;
+}
+function netMarkHTML(id) {
+  if (id==="visa") return `<span style="font-style:italic;font-weight:700;color:#fff;font-size:15px;">VISA</span>`;
+  if (id==="mastercard") return `<span style="display:inline-flex;align-items:center;"><span style="width:15px;height:15px;background:#EB001B;border-radius:50%;display:inline-block;"></span><span style="width:15px;height:15px;background:#F79E1B;border-radius:50%;display:inline-block;margin-left:-5px;opacity:0.85;"></span></span>`;
+  if (id==="rupay") return `<span style="font-weight:700;color:#fff;font-size:11px;">Ru<span style="color:#F7941D;">Pay</span></span>`;
+  if (id==="amex") return `<span style="background:#0055A4;padding:2px 6px;border-radius:2px;color:#fff;font-weight:700;font-size:8px;">AMEX</span>`;
+  if (id==="diners") return `<span style="font-weight:600;color:#fff;font-size:10px;">Diners Club</span>`;
+  return `<span style="color:rgba(255,255,255,0.6);font-size:9px;">CARD</span>`;
+}
+function chipSVG() {
+  return `<svg width="30" height="23" viewBox="0 0 34 26" fill="none">
+    <rect x="0.5" y="0.5" width="33" height="25" rx="4" fill="#D9C078" stroke="#8A7433" stroke-width="0.5"/>
+    <line x1="11.3" y1="0.5" x2="11.3" y2="25.5" stroke="#8A7433" stroke-width="0.6"/>
+    <line x1="22.7" y1="0.5" x2="22.7" y2="25.5" stroke="#8A7433" stroke-width="0.6"/>
+    <line x1="0.5" y1="13" x2="33.5" y2="13" stroke="#8A7433" stroke-width="0.6"/>
+    <rect x="11.3" y="6.2" width="11.4" height="13.6" fill="none" stroke="#8A7433" stroke-width="0.6"/>
+  </svg>`;
+}
+function cardFaceHTML(card, revealed, isFlipped) {
+  const bank = bankOf(card.bankId);
+  const bg = `linear-gradient(135deg, ${bank.accent} 0%, #05070C 130%)`;
+  if (!isFlipped) {
+    return `<div class="card" style="background:${bg}">
+      <div class="glow"></div>
+      <div class="row"><div class="chip">${chipSVG()}${wordmarkHTML(bank)}</div>${netMarkHTML(card.networkId)}</div>
+      <div class="cardNum mono">${revealed ? fmtNum(card.number) : maskNum(card.number)}</div>
+      <div class="row end">
+        <div><div class="fieldLabel">Card holder</div><div class="fieldVal">${esc(card.holder)||"—"}</div></div>
+        <div style="text-align:right"><div class="fieldLabel">Expires</div><div class="expVal mono">${esc(card.expiry)||"••/••"}</div></div>
+      </div>
+    </div>`;
+  }
+  return `<div class="card" style="background:${bg}">
+    <div class="glow"></div>
+    <div class="stripe"></div>
+    <div class="row" style="justify-content:flex-end"><div class="cvvBox mono">${revealed ? (esc(card.cvv)||"•••") : "•••"}</div></div>
+    <div class="row end"><div class="bankName">${esc(bank.name)}</div>${netMarkHTML(card.networkId)}</div>
+  </div>`;
+}
+
+// ---------- stack scroll math ----------
+const ITEM_H = 118;
+function renderStack() {
+  const items = cards.map((c,i)=>{
+    const bank = bankOf(c.bankId);
+    return `<div class="stackItem" data-idx="${i}">
+      <button class="stackCardBtn" data-id="${c.id}">
+        ${cardFaceHTML(c, false, false)}
+        <div class="bankPill" style="background:${bank.chip};color:${bank.accent}">${esc(bank.name)}</div>
+      </button>
+    </div>`;
+  }).join("");
+  return `<div class="stackOuter">
+    <div class="stackScroll" id="stackScroll">
+      <div class="stackSpacer"></div>
+      ${items}
+      <div class="stackSpacer"></div>
+    </div>
+    <div class="fadeTop"></div>
+    <div class="fadeBottom"></div>
+  </div>`;
+}
+function updateStackTransforms() {
+  const scroller = document.getElementById("stackScroll");
+  if (!scroller) return;
+  const progress = scroller.scrollTop / ITEM_H;
+  const btns = scroller.querySelectorAll(".stackCardBtn");
+  btns.forEach((btn, i) => {
+    const dist = i - progress;
+    const rotateX = Math.max(-40, Math.min(40, dist*26));
+    const translateY = dist*46;
+    const translateZ = -Math.abs(dist)*60;
+    const scale = Math.max(0.72, 1 - Math.abs(dist)*0.13);
+    const opacity = Math.max(0.25, 1 - Math.abs(dist)*0.32);
+    btn.style.position = "absolute";
+    btn.style.zIndex = 100 - Math.round(Math.abs(dist)*10);
+    btn.style.transform = `translateY(${translateY}px) translateZ(${translateZ}px) rotateX(${rotateX}deg) scale(${scale})`;
+    btn.style.opacity = opacity;
+  });
+}
+
+// ---------- main render ----------
+function render() {
+  const content = document.getElementById("content");
+  if (cards.length === 0) {
+    content.innerHTML = `<div class="empty">No cards yet — add your first one</div>`;
+  } else {
+    content.innerHTML = renderStack();
+    const scroller = document.getElementById("stackScroll");
+    scroller.addEventListener("scroll", updateStackTransforms, { passive:true });
+    scroller.querySelectorAll(".stackCardBtn").forEach(btn=>{
+      btn.addEventListener("click", ()=>{ activeId = btn.dataset.id; flipped=false; renderDetailSheet(); });
+    });
+    requestAnimationFrame(updateStackTransforms);
+  }
+  renderSaveError();
+}
+function renderSaveError() {
+  const existing = document.getElementById("errNote");
+  if (existing) existing.remove();
+  if (saveError) {
+    const note = document.createElement("div");
+    note.id = "errNote";
+    note.className = "errNote";
+    note.textContent = "Couldn't save to this device's storage — it may be full or private browsing is blocking it.";
+    document.querySelector(".note").insertAdjacentElement("afterend", note);
+  }
+}
+
+// ---------- detail sheet ----------
+function renderDetailSheet() {
+  const card = cards.find(c=>c.id===activeId);
+  if (!card) { closeModal(); return; }
+  const bank = bankOf(card.bankId);
+  const revealed = !!revealMap[card.id];
+  const root = document.getElementById("modalRoot");
+  root.innerHTML = `
+    <div class="overlay" id="sheetOverlay">
+      <div class="sheet" id="sheetBox">
+        <div class="sheetHead">
+          <button class="backBtn" id="sheetClose">&#8249;</button>
+          ${wordmarkHTML(bank, "lg")}
+          <div><div class="bankTitle">${esc(bank.name)}</div><div class="bankSub">${esc(card.nickname) || (netOf(card.networkId)?.label||"Card")}</div></div>
+        </div>
+        <div class="flipWrap">
+          <div class="flipInner ${flipped?'flipped':''}" id="flipCard">
+            <div class="face">${cardFaceHTML(card, revealed, false)}</div>
+            <div class="face faceBack">${cardFaceHTML(card, revealed, true)}</div>
+          </div>
+        </div>
+        <p class="hint">Tap the card to flip it</p>
+        <div class="detailBox">
+          <div class="detailHead">
+            <span style="color:rgba(255,255,255,0.5);font-size:12px;">Details</span>
+            <div style="display:flex;gap:8px;">
+              <button class="actionBtn revealBtn" id="revealBtn">${revealed?'Hide':'Reveal'}</button>
+              <button class="actionBtn delBtn" id="delBtn">Delete</button>
+            </div>
+          </div>
+          <div class="detItem"><div class="detLabel">Number</div><div class="detVal mono">${revealed ? fmtNum(card.number) : maskNum(card.number)}</div></div>
+          <div class="detItem"><div class="detLabel">Card holder</div><div class="detVal">${esc(card.holder)||"—"}</div></div>
+          <div class="detGrid">
+            <div><div class="detLabel">Expiry</div><div class="detVal mono">${esc(card.expiry)||"—"}</div></div>
+            <div><div class="detLabel">CVV</div><div class="detVal mono">${revealed ? (esc(card.cvv)||"—") : "•••"}</div></div>
+          </div>
+          <div class="detItem"><div class="detLabel">Network</div><div class="detVal">${netOf(card.networkId)?.label||"—"}</div></div>
+        </div>
+      </div>
+    </div>`;
+  document.getElementById("sheetOverlay").addEventListener("click", (e)=>{ if(e.target.id==="sheetOverlay") closeModal(); });
+  document.getElementById("sheetClose").addEventListener("click", closeModal);
+  document.getElementById("flipCard").addEventListener("click", ()=>{ flipped=!flipped; renderDetailSheet(); });
+  document.getElementById("revealBtn").addEventListener("click", ()=>{ revealMap[card.id]=!revealMap[card.id]; renderDetailSheet(); });
+  document.getElementById("delBtn").addEventListener("click", ()=>{
+    cards = cards.filter(c=>c.id!==card.id);
+    saveError = !saveCards(cards);
+    closeModal();
+    render();
+  });
+}
+
+// ---------- add card modal ----------
+function renderAddModal() {
+  const filtered = BANKS.filter(b=>b.name.toLowerCase().includes(bankQuery.toLowerCase()));
+  const root = document.getElementById("modalRoot");
+  root.innerHTML = `
+    <div class="overlay" id="addOverlay">
+      <div class="sheet" id="addSheet">
+        <div class="sheetHead" style="justify-content:space-between;">
+          <span class="modalTitle">Add a card</span>
+          <button class="closeBtn" id="addClose">&times;</button>
+        </div>
+        <label class="label">Choose bank</label>
+        <div class="searchBox">
+          <span class="searchIcon">&#128269;</span>
+          <input type="text" id="bankSearch" placeholder="Search banks…" value="${esc(bankQuery)}">
+        </div>
+        <div class="bankList" id="bankList" style="margin-top:8px;">
+          ${filtered.map(b=>`
+            <button class="bankRow" data-bank="${b.id}" style="background:${form.bankId===b.id?'rgba(201,162,39,0.15)':'transparent'}">
+              ${wordmarkHTML(b, "list")}<span class="name">${esc(b.name)}</span>
+            </button>`).join("") || `<p style="color:rgba(255,255,255,0.3);font-size:12px;padding:10px;">No matches</p>`}
+        </div>
+
+        <label class="label">Network</label>
+        <div class="netGrid">
+          ${NETWORKS.map(n=>`
+            <button class="netBtn" data-net="${n.id}" style="background:${form.networkId===n.id?'rgba(201,162,39,0.15)':'#0B1220'};border-color:${form.networkId===n.id?'#C9A227':'rgba(255,255,255,0.08)'}">
+              ${netMarkHTML(n.id)}
+            </button>`).join("")}
+        </div>
+
+        <div class="field">
+          <label class="label" style="margin-top:0;">Card number</label>
+          <input type="text" class="mono" id="fNumber" placeholder="1234 5678 9012 3456" value="${fmtNum(form.number)}">
+        </div>
+        <div class="field">
+          <label class="label" style="margin-top:0;">Card holder name</label>
+          <input type="text" id="fHolder" placeholder="AS PRINTED ON CARD" value="${esc(form.holder)}">
+        </div>
+        <div class="fieldRow">
+          <div class="field">
+            <label class="label" style="margin-top:0;">Expiry (MM/YY)</label>
+            <input type="text" class="mono" id="fExpiry" placeholder="MM/YY" value="${esc(form.expiry)}">
+          </div>
+          <div class="field">
+            <label class="label" style="margin-top:0;">CVV</label>
+            <input type="text" class="mono" id="fCvv" placeholder="123" value="${esc(form.cvv)}">
+          </div>
+        </div>
+        <div class="field">
+          <label class="label" style="margin-top:0;">Nickname (optional)</label>
+          <input type="text" id="fNickname" placeholder="e.g. Salary account card" value="${esc(form.nickname)}">
+        </div>
+        <button class="saveBtn" id="saveCardBtn">Save card</button>
+      </div>
+    </div>`;
+
+  document.getElementById("addOverlay").addEventListener("click", (e)=>{ if(e.target.id==="addOverlay") closeModal(); });
+  document.getElementById("addClose").addEventListener("click", closeModal);
+  document.getElementById("bankSearch").addEventListener("input", (e)=>{ bankQuery=e.target.value; renderAddModal(); focusEnd("bankSearch"); });
+  document.querySelectorAll(".bankRow").forEach(btn=>btn.addEventListener("click", ()=>{ form.bankId=btn.dataset.bank; renderAddModal(); }));
+  document.querySelectorAll(".netBtn").forEach(btn=>btn.addEventListener("click", ()=>{ form.networkId=btn.dataset.net; renderAddModal(); }));
+  document.getElementById("fNumber").addEventListener("input", (e)=>{
+    form.number = e.target.value;
+    if (!form.networkId) { const s = detectNet(form.number); if (s) form.networkId = s; }
+  });
+  document.getElementById("fHolder").addEventListener("input", (e)=>{ form.holder = e.target.value; });
+  document.getElementById("fExpiry").addEventListener("input", (e)=>{ form.expiry = e.target.value.replace(/[^\d/]/g,"").slice(0,5); e.target.value = form.expiry; });
+  document.getElementById("fCvv").addEventListener("input", (e)=>{ form.cvv = e.target.value.replace(/\D/g,"").slice(0,4); e.target.value = form.cvv; });
+  document.getElementById("fNickname").addEventListener("input", (e)=>{ form.nickname = e.target.value; });
+  document.getElementById("saveCardBtn").addEventListener("click", handleAdd);
+}
+function focusEnd(id) { const el = document.getElementById(id); if(el){ el.focus(); const v=el.value; el.value=""; el.value=v; } }
+
+function handleAdd() {
+  const clean = form.number.replace(/\s/g,"");
+  if (clean.length < 12 || !form.holder || !form.expiry || !form.bankId || !form.networkId) {
+    alert("Bank, network, card number, holder name aur expiry — sab bharna zaroori hai.");
+    return;
+  }
+  const newCard = {
+    id: Date.now().toString(),
+    bankId: form.bankId,
+    networkId: form.networkId,
+    number: clean,
+    holder: form.holder.toUpperCase(),
+    expiry: form.expiry,
+    cvv: form.cvv,
+    nickname: form.nickname,
+  };
+  cards.push(newCard);
+  saveError = !saveCards(cards);
+  form = { bankId:"", networkId:"", number:"", holder:"", expiry:"", cvv:"", nickname:"" };
+  bankQuery = "";
+  closeModal();
+  render();
+}
+
+function closeModal() { document.getElementById("modalRoot").innerHTML = ""; }
+
+document.getElementById("addBtn").addEventListener("click", renderAddModal);
+render();
+</script>
+</body>
+</html>
